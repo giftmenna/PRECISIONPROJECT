@@ -40,7 +40,6 @@ ENV_TEMPLATE.txt
 neon_backup.sql
 
 # vercel
-.vercel
 
 # typescript
 *.tsbuildinfo

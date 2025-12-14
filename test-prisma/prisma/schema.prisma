@@ -1,0 +1,849 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+model User {
+  id                      String                        @id @default(cuid())
+  name                    String?
+  email                   String                        @unique
+  password                String
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  emailVerified           Boolean                       @default(false)
+  avatar                  String?
+  grade                   String?
+  ipAddress               String?
+  role                    String                        @default("user")
+  lastLoginAt             DateTime?
+  age                     Int?
+  country                 String?
+  gender                  String?
+  adWatches               AdWatch[]
+  ai_conversations        AIConversation[]
+  attempts                Attempt[]
+  competitionEntries      CompetitionEntry[]
+  reviewedImages          CompetitionImageUpload[]      @relation("ImageReviewer")
+  imageUploads            CompetitionImageUpload[]
+  competitionLeaderboards CompetitionLeaderboard[]
+  dailyLessonWatches      DailyLessonWatch[]
+  dropAttempts            DropAttempt[]
+  gradeCompetitionEntries GradeCompetitionEntry[]
+  reviewedGradeImages     GradeCompetitionImageUpload[] @relation("GradeImageReviewer")
+  gradeImageUploads       GradeCompetitionImageUpload[]
+  gradeCompetitionResults GradeCompetitionResult[]
+  group_chat_members      GroupChatMember[]
+  group_chat_messages     GroupChatMessage[]
+  learningAttempts        LearningAttempt[]
+  notificationSettings    NotificationSettings?
+  notifications           Notification[]
+  paymentTransactions     PaymentTransaction[]
+  payments                Payment[]
+  practiceAttempts        PracticeAttempt[]
+  pushSubscriptions       PushSubscription[]
+  testAttempts            TestAttempt[]
+  wallet                  Wallet?
+
+  @@map("users")
+}
+
+model OTPCode {
+  id        String   @id @default(cuid()) @map("id")
+  email     String   @unique @map("email")
+  codeHash  String   @map("codeHash")
+  expiresAt DateTime @map("expiresAt")
+  createdAt DateTime @default(now()) @map("createdAt")
+
+  @@map("otp_codes")
+}
+
+model Wallet {
+  id          String         @id @default(cuid())
+  userId      String         @unique
+  gemsBalance Decimal        @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  ledger      WalletLedger[]
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+model WalletLedger {
+  id        String     @id @default(cuid())
+  walletId  String
+  amount    Decimal
+  type      LedgerType
+  refType   String?
+  refId     String?
+  createdAt DateTime   @default(now())
+  wallet    Wallet     @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@map("wallet_ledger")
+}
+
+model Payment {
+  id                      String                  @id @default(cuid())
+  userId                  String
+  provider                String
+  amountNgn               Int
+  status                  PaymentStatus           @default(PENDING)
+  ref                     String?
+  metadata                Json?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  competitionEntries      CompetitionEntry[]
+  gradeCompetitionEntries GradeCompetitionEntry[]
+  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model PaymentTransaction {
+  id                String        @id @default(cuid())
+  userId            String
+  amount            Decimal
+  gemAmount         Int
+  packageName       String
+  status            PaymentStatus @default(PENDING)
+  paymentMethod     String        @default("PAYSTACK")
+  reference         String        @unique
+  paystackReference String?
+  authorizationUrl  String?
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payment_transactions")
+}
+
+model GemRate {
+  id            String   @id @default(cuid())
+  rateGemPerNgn Decimal
+  effectiveFrom DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@map("gem_rates")
+}
+
+model MathQuestion {
+  id               String                   @id @default(cuid()) @map("id")
+  prompt           String                   @map("prompt")
+  choices          Json                     @map("choices")
+  correctChoice    String                   @map("correctChoice")
+  isActive         Boolean                  @default(true) @map("isActive")
+  topic            String                   @map("topicKey")
+  difficulty       String                   @map("difficulty")
+  explanation      String?                  @map("explanation")
+  timeLimit        Int                      @default(60) @map("timeLimit")
+  gems             Int                      @default(0) @map("gems")
+  requiredGems     Int?                     @default(0) @map("requiredGems")
+  grade            String?                  @map("grade")
+  imageUrl         String?                  @map("imageUrl")
+  competitionId    String?                  @map("competitionId")
+  position         Int?                     @default(0) @map("position")
+  createdAt        DateTime                 @default(now()) @map("createdAt")
+  source           String?                            @default("DAILY_LESSON") @map("source")
+  updatedAt        DateTime                 @updatedAt @map("updatedAt")
+  imageUploads     CompetitionImageUpload[]
+  dailyLessonLinks DailyLessonQuestion[]
+  dropAnswers      DropAnswer[]
+  dropQuestions    DropQuestion[]
+  competition      Competition?             @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  practiceAttempts PracticeAttempt[]
+  testSetQuestions TestSet[]                @relation("TestSetQuestions")
+
+  @@map("math_questions")
+}
+
+model GradeCompetition {
+  id                 String                        @id @default(cuid())
+  name               String
+  description        String?
+  grade              String
+  entryFee           Decimal                       @default(3)
+  status             GradeCompetitionStatus        @default(DRAFT)
+  startsAt           DateTime
+  endsAt             DateTime
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+  timeLimit          Int                           @default(1800)
+  requireImageUpload Boolean                       @default(false)
+  showExplanations   Boolean                       @default(true)
+  entries            GradeCompetitionEntry[]
+  imageUploads       GradeCompetitionImageUpload[]
+  questions          GradeCompetitionQuestion[]
+  results            GradeCompetitionResult[]
+
+  @@map("grade_competitions")
+}
+
+model GradeCompetitionQuestion {
+  id            String                        @id @default(cuid())
+  competitionId String
+  prompt        String
+  choices       Json
+  correct       String
+  topic         String
+  difficulty    String?
+  imageUrl      String?
+  position      Int
+  createdAt     DateTime                      @default(now())
+  timeLimit     Int                           @default(60)
+  imageUploads  GradeCompetitionImageUpload[]
+  competition   GradeCompetition              @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  @@map("grade_competition_questions")
+}
+
+model GradeCompetitionEntry {
+  id            String           @id @default(cuid())
+  competitionId String
+  userId        String
+  status        EntryStatus      @default(PENDING)
+  method        EntryMethod
+  paymentId     String?
+  createdAt     DateTime         @default(now())
+  competition   GradeCompetition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  payment       Payment?         @relation(fields: [paymentId], references: [id])
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, userId])
+  @@map("grade_competition_entries")
+}
+
+model GradeCompetitionResult {
+  id             String           @id @default(cuid())
+  competitionId  String
+  userId         String
+  score          Int
+  totalQuestions Int
+  accuracy       Decimal
+  timeSpent      Int
+  gemsEarned     Decimal
+  startTime      DateTime
+  endTime        DateTime
+  status         String           @default("COMPLETED")
+  createdAt      DateTime         @default(now())
+  competition    GradeCompetition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, userId])
+  @@map("grade_competition_results")
+}
+
+model GradeCompetitionImageUpload {
+  id            String                   @id @default(cuid())
+  competitionId String
+  userId        String
+  questionId    String
+  imageUrl      String
+  uploadedAt    DateTime                 @default(now())
+  reviewStatus  ImageReviewStatus        @default(PENDING)
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNotes   String?
+  isCorrect     Boolean?
+  competition   GradeCompetition         @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  question      GradeCompetitionQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviewer      User?                    @relation("GradeImageReviewer", fields: [reviewedBy], references: [id])
+  user          User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("grade_competition_image_uploads")
+}
+
+model PracticeAttempt {
+  id         String       @id @default(cuid())
+  userId     String
+  questionId String
+  choice     String?      @map("choice")
+  isCorrect  Boolean      @default(false) @map("isCorrect")
+  gemsEarned Int          @default(0) @map("gemsEarned")
+  isActive   Boolean      @default(true) @map("isActive")
+  createdAt  DateTime     @default(now()) @map("createdAt")
+  question   MathQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@map("practice_attempts")
+}
+
+model Competition {
+  id                 String                   @id @default(cuid())
+  name               String
+  description        String?
+  startsAt           DateTime
+  endsAt             DateTime
+  dropIntervalHours  Int
+  dropOpenMinutes    Int
+  questionsPerDrop   Int                      @default(1)
+  entryType          EntryType
+  entryPriceNgn      Int?
+  entryPriceGem      Decimal?
+  prizeCashNgn       Int                      @default(0)
+  prizeSchema        Json
+  createdBy          String?
+  createdAt          DateTime                 @default(now())
+  status             CompetitionStatus        @default(DRAFT)
+  timeLimit          Int                      @default(1800)
+  totalQuestions     Int                      @default(10)
+  requireImageUpload Boolean                  @default(false)
+  showExplanations   Boolean                  @default(true)
+  drops              CompetitionDrop[]
+  entries            CompetitionEntry[]
+  imageUploads       CompetitionImageUpload[]
+  leaderboards       CompetitionLeaderboard[]
+  questions          MathQuestion[]
+
+  @@map("competitions")
+}
+
+model CompetitionEntry {
+  id            String      @id @default(cuid())
+  competitionId String
+  userId        String
+  status        EntryStatus @default(PENDING)
+  method        EntryMethod
+  paymentId     String?
+  createdAt     DateTime    @default(now())
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  payment       Payment?    @relation(fields: [paymentId], references: [id])
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, userId])
+  @@map("competition_entries")
+}
+
+model CompetitionImageUpload {
+  id            String            @id @default(cuid())
+  competitionId String
+  userId        String
+  questionId    String
+  imageUrl      String
+  uploadedAt    DateTime          @default(now())
+  reviewStatus  ImageReviewStatus @default(PENDING)
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNotes   String?
+  isCorrect     Boolean?
+  competition   Competition       @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  question      MathQuestion      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviewer      User?             @relation("ImageReviewer", fields: [reviewedBy], references: [id])
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("competition_image_uploads")
+}
+
+model CompetitionDrop {
+  id                 String         @id @default(cuid())
+  competitionId      String
+  opensAt            DateTime
+  closesAt           DateTime
+  indexInCompetition Int
+  competition        Competition    @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  attempts           DropAttempt[]
+  questions          DropQuestion[]
+
+  @@map("competition_drops")
+}
+
+model DropQuestion {
+  dropId     String
+  questionId String
+  position   Int
+  drop       CompetitionDrop @relation(fields: [dropId], references: [id], onDelete: Cascade)
+  question   MathQuestion    @relation(fields: [questionId], references: [id])
+
+  @@id([dropId, questionId])
+  @@map("drop_questions")
+}
+
+model DropAttempt {
+  id          String          @id @default(cuid())
+  dropId      String
+  userId      String
+  startedAt   DateTime        @default(now())
+  submittedAt DateTime?
+  score       Int             @default(0)
+  avgTimeMs   Int             @default(0)
+  answers     DropAnswer[]
+  drop        CompetitionDrop @relation(fields: [dropId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dropId, userId])
+  @@map("drop_attempts")
+}
+
+model DropAnswer {
+  attemptId  String
+  questionId String
+  choice     String?
+  isCorrect  Boolean      @default(false)
+  timeMs     Int
+  position   Int
+  attempt    DropAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question   MathQuestion @relation(fields: [questionId], references: [id])
+
+  @@id([attemptId, questionId])
+  @@map("drop_answers")
+}
+
+model CompetitionLeaderboard {
+  competitionId String
+  userId        String
+  gemsEarned    Decimal     @default(0)
+  correctTotal  Int         @default(0)
+  avgTimeMs     Int         @default(0)
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([competitionId, userId])
+  @@map("competition_leaderboards")
+}
+
+model Topic {
+  key         String     @id
+  displayName String
+  defaultGems Int        @default(2)
+  questions   Question[]
+
+  @@map("topics")
+}
+
+model Question {
+  id                  String               @id @default(cuid())
+  prompt              String
+  choices             Json
+  correct             String
+  source              String?
+  difficulty          String?
+  uidExternal         String?              @unique
+  createdAt           DateTime             @default(now())
+  gemValue            Int                  @default(2)
+  topicKey            String?
+  isActive            Boolean              @default(true)
+  attemptAnswers      AttemptAnswer[]
+  topic               Topic?               @relation(fields: [topicKey], references: [key])
+  weeklyTestQuestions WeeklyTestQuestion[]
+
+  @@map("questions")
+}
+
+model WeeklyTest {
+  id                String               @id @default(cuid())
+  weekOf            DateTime             @unique
+  liveAt            DateTime
+  closeAt           DateTime
+  createdAt         DateTime             @default(now())
+  timeLimit         Int                  @default(0)
+  gemsReward        Decimal?
+  rewardRule        String               @default("ALL_CORRECT")
+  maxWrongAllowed   Int                  @default(0)
+  revealResultAtEnd Boolean              @default(true)
+  requiredGrade     String?
+  attempts          Attempt[]
+  questions         WeeklyTestQuestion[]
+
+  @@map("weekly_tests")
+}
+
+model WeeklyTestQuestion {
+  weeklyTestId String
+  questionId   String
+  position     Int
+  question     Question   @relation(fields: [questionId], references: [id])
+  weeklyTest   WeeklyTest @relation(fields: [weeklyTestId], references: [id], onDelete: Cascade)
+
+  @@id([weeklyTestId, questionId])
+  @@map("weekly_test_questions")
+}
+
+model Attempt {
+  id           String          @id @default(cuid())
+  weeklyTestId String
+  userId       String
+  startedAt    DateTime        @default(now())
+  submittedAt  DateTime?
+  score        Int             @default(0)
+  avgTimeMs    Int             @default(0)
+  gemsTotal    Int             @default(0)
+  answers      AttemptAnswer[]
+  user         User            @relation(fields: [userId], references: [id])
+  weeklyTest   WeeklyTest      @relation(fields: [weeklyTestId], references: [id], onDelete: Cascade)
+
+  @@unique([weeklyTestId, userId])
+  @@map("attempts")
+}
+
+model AttemptAnswer {
+  attemptId  String
+  questionId String
+  choice     String?
+  isCorrect  Boolean  @default(false)
+  timeMs     Int
+  position   Int
+  gemValue   Int
+  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id])
+
+  @@id([attemptId, questionId])
+  @@map("attempt_answers")
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?
+  isRead      Boolean          @default(false)
+  scheduledAt DateTime?
+  createdAt   DateTime         @default(now())
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model NotificationSettings {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  pushEnabled            Boolean  @default(true)
+  emailEnabled           Boolean  @default(true)
+  newQuestionsEnabled    Boolean  @default(true)
+  competitionEnabled     Boolean  @default(true)
+  practiceEnabled        Boolean  @default(true)
+  reminderEnabled        Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  welcomeMessagesEnabled Boolean  @default(true)
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
+}
+
+model AdWatch {
+  id         String   @id @default(cuid())
+  userId     String
+  gemsEarned Int      @default(5)
+  adType     String   @default("VIDEO_AD")
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ad_watches")
+}
+
+model TestSet {
+  id                String         @id @default(cuid())
+  name              String
+  description       String
+  requiredGems      Int            @default(0)
+  requiredGrade     String?
+  isActive          Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  timeLimit         Int            @default(0)
+  gemsReward        Decimal?
+  rewardRule        String         @default("ALL_CORRECT")
+  maxWrongAllowed   Int            @default(0)
+  revealResultAtEnd Boolean        @default(true)
+  testAttempts      TestAttempt[]
+  questions         MathQuestion[] @relation("TestSetQuestions")
+
+  @@map("test_sets")
+}
+
+model TestAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  testSetId      String
+  score          Int      @default(0)
+  totalQuestions Int      @default(0)
+  correctAnswers Int      @default(0)
+  timeSpent      Int      @default(0)
+  completed      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  testSet        TestSet  @relation(fields: [testSetId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("test_attempts")
+}
+
+model DailyLesson {
+  id                    String                @id @default(cuid())
+  title                 String                @map("title")
+  description           String                @map("description")
+  videoUrl              String                @map("videoUrl")
+  thumbnailUrl          String?               @map("thumbnailUrl")
+  duration              Int                   @map("duration")
+  scheduledDate         DateTime              @map("scheduledDate")
+  isActive              Boolean               @default(true) @map("isActive")
+  autoStack             Boolean               @default(false) @map("autoStack")
+  gemsReward            Float                 @default(0.25) @map("gemsReward")
+  createdAt             DateTime              @default(now()) @map("createdAt")
+  updatedAt             DateTime              @map("updatedAt")
+  scheduledTime         String?               @map("scheduledTime")
+  requiredWatchDuration Int                   @default(120) @map("requiredWatchDuration")
+  questions             DailyLessonQuestion[]
+  watchedBy             DailyLessonWatch[]
+
+  @@map("daily_lessons")
+}
+
+model DailyLessonWatch {
+  id            String      @id @default(cuid()) @map("id")
+  userId        String      @map("userId")
+  dailyLessonId String      @map("dailyLessonId")
+  watchedAt     DateTime    @default(now()) @map("watchedAt")
+  gemsEarned    Float       @default(0.25) @map("gemsEarned")
+  dailyLesson   DailyLesson @relation(fields: [dailyLessonId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dailyLessonId])
+  @@map("daily_lesson_watches")
+}
+
+model LearningModule {
+  id           String             @id @default(cuid())
+  title        String
+  description  String?
+  topic        String
+  notes        String?
+  videoUrl     String
+  thumbnailUrl String?
+  duration     Int                @default(0)
+  gemsReward   Decimal?
+  isActive     Boolean            @default(true)
+  order        Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @default(now()) @updatedAt
+  attempts     LearningAttempt[]
+  questions    LearningQuestion[]
+
+  @@map("learning_modules")
+}
+
+model LearningQuestion {
+  id          String                    @id @default(cuid())
+  moduleId    String
+  prompt      String
+  choices     Json
+  correct     String
+  explanation String?
+  order       Int                       @default(0)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @default(now()) @updatedAt
+  attempts    LearningQuestionAttempt[]
+  module      LearningModule            @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("learning_questions")
+}
+
+model LearningAttempt {
+  id               String                    @id @default(cuid())
+  userId           String
+  moduleId         String
+  score            Int                       @default(0)
+  totalQuestions   Int                       @default(0)
+  gemsEarned       Decimal                   @default(0)
+  startedAt        DateTime                  @default(now())
+  completedAt      DateTime?
+  status           String                    @default("IN_PROGRESS")
+  module           LearningModule            @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user             User                      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  questionAttempts LearningQuestionAttempt[]
+
+  @@unique([userId, moduleId])
+  @@map("learning_attempts")
+}
+
+model LearningQuestionAttempt {
+  id         String           @id @default(cuid())
+  attemptId  String
+  questionId String
+  userAnswer String?
+  isCorrect  Boolean          @default(false)
+  timeSpent  Int              @default(0)
+  answeredAt DateTime         @default(now())
+  attempt    LearningAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  question   LearningQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("learning_question_attempts")
+}
+
+model AIConversation {
+  id          String      @id @default(cuid())
+  user_id     String
+  title       String      @default("New Conversation")
+  created_at  DateTime?   @default(now())
+  updated_at  DateTime?   @default(now())
+  users       User        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ai_messages AIMessage[]
+
+  @@index([user_id])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id               String         @id @default(cuid())
+  conversation_id  String
+  role             String
+  content          String
+  metadata         Json?
+  created_at       DateTime?      @default(now())
+  ai_conversations AIConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([conversation_id])
+  @@index([created_at])
+  @@map("ai_messages")
+}
+
+model GroupChat {
+  id                  String             @id @default(cuid())
+  name                String             @default("Study Group")
+  description         String?
+  created_at          DateTime?          @default(now())
+  updated_at          DateTime?          @default(now())
+  isActive            Boolean            @default(true) @map("is_active")
+  group_chat_members  GroupChatMember[]
+  group_chat_messages GroupChatMessage[]
+
+  @@map("group_chats")
+}
+
+model GroupChatMember {
+  id          String    @id @default(cuid())
+  chat_id     String
+  user_id     String
+  role        String    @default("member")
+  joined_at   DateTime? @default(now())
+  is_active   Boolean?  @default(true)
+  is_banned   Boolean?  @default(false)
+  banned_by   String?
+  banned_at   DateTime?
+  ban_reason  String?
+  group_chats GroupChat @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([chat_id, user_id])
+  @@index([chat_id])
+  @@index([user_id])
+  @@map("group_chat_members")
+}
+
+model GroupChatMessage {
+  id             String    @id @default(cuid())
+  chat_id        String
+  user_id        String
+  content        String
+  message_type   String    @default("text")
+  media_url      String?
+  media_duration Int?
+  is_deleted     Boolean?  @default(false)
+  created_at     DateTime? @default(now())
+  group_chats    GroupChat @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([chat_id])
+  @@index([created_at])
+  @@index([user_id])
+  @@map("group_chat_messages")
+}
+
+model DailyLessonQuestion {
+  dailyLessonId String
+  questionId    String
+  position      Int
+  questionType  String @default("multiple_choice")
+  dailyLesson   DailyLesson  @relation(fields: [dailyLessonId], references: [id], onDelete: Cascade)
+  question      MathQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([dailyLessonId, questionId])
+  @@map("daily_lesson_questions")
+}
+
+enum ImageReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_REVIEW
+}
+
+enum LedgerType {
+  PRACTICE_REWARD
+  COMPETITION_REWARD
+  ENTRY_FEE_GEM
+  ADMIN_ADJUSTMENT
+  REFUND
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum EntryType {
+  FREE
+  PAID
+}
+
+enum EntryStatus {
+  PENDING
+  CONFIRMED
+  REFUNDED
+}
+
+enum EntryMethod {
+  FREE
+  FIAT
+  GEM
+}
+
+enum CompetitionStatus {
+  DRAFT
+  COMING_SOON
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum GradeCompetitionStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  NEW_QUESTION
+  COMPETITION_STARTING
+  PRACTICE_REMINDER
+  COMPETITION_RESULT
+  GEM_EARNED
+  SYSTEM_UPDATE
+  WELCOME_FIRST_TIME
+  WELCOME_BACK
+  NEW_QUESTIONS_POSTED
+}

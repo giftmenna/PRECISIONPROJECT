@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sparklesGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ec4899;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9333ea;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#sparklesGradient)" stroke="white" stroke-width="2"/>
+  <path d="M32 8L34.5 20L46 22.5L34.5 25L32 37L29.5 25L18 22.5L29.5 20L32 8Z" fill="white"/>
+  <path d="M48 24L49 28L53 29L49 30L48 34L47 30L43 29L47 28L48 24Z" fill="white"/>
+  <path d="M16 40L17 44L21 45L17 46L16 50L15 46L11 45L15 44L16 40Z" fill="white"/>
+  <path d="M56 48L57 52L61 53L57 54L56 58L55 54L51 53L55 52L56 48Z" fill="white"/>
+</svg> 

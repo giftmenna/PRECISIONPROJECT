@@ -1,0 +1,22 @@
+# ============================================
+# CORRECT SUPABASE CONNECTION STRINGS
+# ============================================
+
+# For DATABASE_URL (port 6543 - pooler with pgbouncer)
+# Username: postgres.zdlwtyezwtwolwfwprvj (with project ref)
+DATABASE_URL="postgresql://postgres.zdlwtyezwtwolwfwprvj:to0vmYFrbojEbjBA@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+
+# For DIRECT_URL (port 5432 - direct connection)  
+# Username: postgres (without project ref)
+DIRECT_URL="postgresql://postgres:to0vmYFrbojEbjBA@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+
+# OR try this alternative for DIRECT_URL:
+# DIRECT_URL="postgresql://postgres.zdlwtyezwtwolwfwprvj:to0vmYFrbojEbjBA@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+
+# ============================================
+# EXPLANATION:
+# ============================================
+# Port 6543 = Transaction pooling (use postgres.PROJECT_REF)
+# Port 5432 = Session mode (use postgres only)
+# 
+# If one doesn't work, try the other format!

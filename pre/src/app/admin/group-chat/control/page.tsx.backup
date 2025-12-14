@@ -1,0 +1,976 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Shield, Users, MessageSquare, Plus, Search, Trash2, Edit, Ban, UserX, UserCheck, Calendar, Clock } from "lucide-react";
+
+interface Member {
+	id: string;
+	name: string;
+	email: string;
+	avatar?: string;
+	role?: string;
+	is_banned?: boolean;
+	is_active?: boolean;
+	banned_at?: string;
+	ban_reason?: string;
+}
+
+interface Group {
+	id: string;
+	name: string;
+	description?: string;
+	members: Member[];
+	memberCount: number;
+	lastMessage?: any;
+	createdAt: string;
+}
+
+interface Message {
+	id: string;
+	content: string;
+	user_id: string;
+	created_at: string;
+	users: {
+		name: string;
+		email: string;
+	};
+	is_deleted: boolean;
+}
+
+export default function AdminGroupChatControl() {
+	const { data: session, status } = useSession();
+	const { toast } = useToast();
+	const [groups, setGroups] = useState<Group[]>([]);
+	const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+	const [messages, setMessages] = useState<Message[]>([]);
+	const [search, setSearch] = useState("");
+	const [loading, setLoading] = useState(true);
+	const [showCreateGroup, setShowCreateGroup] = useState(false);
+	const [showBulkDelete, setShowBulkDelete] = useState(false);
+	const [newGroupName, setNewGroupName] = useState("");
+	const [editingGroupName, setEditingGroupName] = useState("");
+	const [isEditingName, setIsEditingName] = useState(false);
+	const [startDate, setStartDate] = useState("");
+	const [endDate, setEndDate] = useState("");
+	const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
+	const [showBanConfirm, setShowBanConfirm] = useState(false);
+	const [showUnbanConfirm, setShowUnbanConfirm] = useState(false);
+	const [showDeleteMessageConfirm, setShowDeleteMessageConfirm] = useState(false);
+	const [showDeleteGroupConfirm, setShowDeleteGroupConfirm] = useState(false);
+	const [actionTarget, setActionTarget] = useState<{id: string, name: string} | null>(null);
+
+	useEffect(() => {
+		if (status === 'loading') return;
+		
+		if (!session?.user || status !== 'authenticated') {
+			window.location.href = '/auth/login';
+			return;
+		}
+
+		loadGroups();
+	}, [session, status]);
+
+	const loadGroups = async () => {
+		try {
+			setLoading(true);
+			const response = await fetch('/api/group-chat');
+			if (!response.ok) {
+				throw new Error('Failed to load groups');
+			}
+			const data = await response.json();
+			setGroups(data.groups || []);
+		} catch (error) {
+			console.error('Error loading groups:', error);
+			toast({
+				title: "Error",
+				description: "Failed to load groups",
+				variant: "destructive",
+			});
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const loadDetails = async (group: Group) => {
+		try {
+			setSelectedGroup(group);
+			
+			// Load messages for the selected group
+			const response = await fetch(`/api/group-chat/${group.id}/messages`);
+			if (response.ok) {
+				const data = await response.json();
+				setMessages(data.messages || []);
+			}
+		} catch (error) {
+			console.error('Error loading group details:', error);
+			toast({
+				title: "Error",
+				description: "Failed to load group details",
+				variant: "destructive",
+			});
+		}
+	};
+
+	const createGroup = async () => {
+		if (!newGroupName.trim()) {
+			toast({
+				title: "Error",
+				description: "Group name is required",
+				variant: "destructive",
+			});
+			return;
+		}
+
+		try {
+			const response = await fetch('/api/group-chat', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: newGroupName.trim() })
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to create group');
+			}
+
+			toast({
+				title: "Success",
+				description: "Group created successfully",
+			});
+
+			setNewGroupName("");
+			setShowCreateGroup(false);
+			loadGroups();
+		} catch (error) {
+			console.error('Error creating group:', error);
+			toast({
+				title: "Error",
+				description: "Failed to create group",
+				variant: "destructive",
+			});
+		}
+	};
+
+	const updateGroupName = async () => {
+		if (!selectedGroup || !editingGroupName.trim()) return;
+
+		try {
+			const response = await fetch(`/api/group-chat/${selectedGroup.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: editingGroupName.trim() })
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to update group name');
+			}
+
+			toast({
+				title: "Success",
+				description: "Group name updated successfully",
+			});
+
+			setIsEditingName(false);
+			loadGroups();
+			if (selectedGroup) {
+				const updatedGroup = { ...selectedGroup, name: editingGroupName.trim() };
+				setSelectedGroup(updatedGroup);
+			}
+		} catch (error) {
+			console.error('Error updating group name:', error);
+			toast({
+				title: "Error",
+				description: "Failed to update group name",
+				variant: "destructive",
+			});
+		}
+	};
+
+	const initiateDeleteGroup = (groupId: string, groupName: string) => {
+		setActionTarget({ id: groupId, name: groupName });
+		setShowDeleteGroupConfirm(true);
+	};
+
+	const confirmDeleteGroup = async () => {
+		if (!actionTarget) return;
+
+		try {
+			const response = await fetch(`/api/group-chat?groupId=${actionTarget.id}`, {
+				method: 'DELETE'
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to delete group');
+			}
+
+			const data = await response.json();
+			toast({
+				title: "Success",
+				description: data.message || "Group deleted successfully",
+			});
+
+			loadGroups();
+			if (selectedGroup?.id === actionTarget.id) {
+				setSelectedGroup(null);
+				setMessages([]);
+			}
+			setShowDeleteGroupConfirm(false);
+			setActionTarget(null);
+		} catch (error) {
+			console.error('Error deleting group:', error);
+			toast({
+				title: "Error",
+				description: "Failed to delete group",
+				variant: "destructive",
+			});
+			setShowDeleteGroupConfirm(false);
+		}
+	};
+
+	const banUser = (userId: string, userName: string) => {
+		if (!selectedGroup) return;
+		
+		// Check if the user is an admin - find the member in the group
+		const member = selectedGroup.members.find(m => m.id === userId);
+		if (member?.role === 'admin') {
+			toast({
+				title: "Cannot Ban Admin",
+				description: "Admin users cannot be banned from groups.",
+				variant: "destructive",
+			});
+			return;
+		}
+		
+		setActionTarget({id: userId, name: userName});
+		setShowBanConfirm(true);
+	};
+
+	const confirmBanUser = async () => {
+		if (!selectedGroup || !actionTarget) return;
+
+		try {
+			const response = await fetch(`/api/group-chat/${selectedGroup.id}/ban-user`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userId: actionTarget.id, reason: 'Banned by admin' })
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to ban user');
+			}
+
+			toast({
+				title: "Success",
+				description: `${actionTarget.name} has been banned`,
+			});
+
+			setShowBanConfirm(false);
+			setActionTarget(null);
+			loadDetails(selectedGroup);
+		} catch (error) {
+			console.error('Error banning user:', error);
+			toast({
+				title: "Error",
+				description: "Failed to ban user",
+				variant: "destructive",
+			});
+			setShowBanConfirm(false);
+		}
+	};
+
+	const unbanUser = (userId: string, userName: string) => {
+		if (!selectedGroup) return;
+		setActionTarget({id: userId, name: userName});
+		setShowUnbanConfirm(true);
+	};
+
+	const confirmUnbanUser = async () => {
+		if (!selectedGroup || !actionTarget) return;
+
+		try {
+			const response = await fetch(`/api/group-chat/${selectedGroup.id}/unban-user`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userId: actionTarget.id })
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to unban user');
+			}
+
+			toast({
+				title: "Success",
+				description: `${actionTarget.name} has been unbanned`,
+			});
+
+			setShowUnbanConfirm(false);
+			setActionTarget(null);
+			loadDetails(selectedGroup);
+		} catch (error) {
+			console.error('Error unbanning user:', error);
+			toast({
+				title: "Error",
+				description: "Failed to unban user",
+				variant: "destructive",
+			});
+			setShowUnbanConfirm(false);
+		}
+	};
+
+	const deleteMessage = (messageId: string) => {
+		if (!selectedGroup) return;
+		setActionTarget({id: messageId, name: 'this message'});
+		setShowDeleteMessageConfirm(true);
+	};
+
+	const confirmDeleteMessage = async () => {
+		if (!selectedGroup || !actionTarget) return;
+
+		try {
+			const response = await fetch(`/api/group-chat/${selectedGroup.id}/delete-message`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ messageId: actionTarget.id })
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to delete message');
+			}
+
+			toast({
+				title: "Success",
+				description: "Message deleted successfully",
+			});
+
+			setShowDeleteMessageConfirm(false);
+			setActionTarget(null);
+			loadDetails(selectedGroup);
+		} catch (error) {
+			console.error('Error deleting message:', error);
+			toast({
+				title: "Error",
+				description: "Failed to delete message",
+				variant: "destructive",
+			});
+			setShowDeleteMessageConfirm(false);
+		}
+	};
+
+	const bulkDeleteMessages = async () => {
+		if (!selectedGroup) return;
+
+		try {
+			const response = await fetch(`/api/group-chat/${selectedGroup.id}/bulk-delete-messages`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					startDate,
+					endDate,
+					messageIds: selectedMessages
+				})
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to delete messages');
+			}
+
+			const data = await response.json();
+			toast({
+				title: "Success",
+				description: `${data.count} messages deleted successfully`,
+			});
+
+			setShowBulkDelete(false);
+			setStartDate("");
+			setEndDate("");
+			setSelectedMessages([]);
+			loadDetails(selectedGroup);
+		} catch (error) {
+			console.error('Error bulk deleting messages:', error);
+			toast({
+				title: "Error",
+				description: "Failed to delete messages",
+				variant: "destructive",
+			});
+		}
+	};
+
+	const filteredGroups = groups.filter(group =>
+		group.name.toLowerCase().includes(search.toLowerCase())
+	);
+
+	if (status === 'loading') {
+		return (
+			<div className="container mx-auto p-6">
+				<div className="text-center">Loading...</div>
+			</div>
+		);
+	}
+
+	if (!session?.user) {
+		return (
+			<div className="container mx-auto p-6">
+				<div className="text-center">Please sign in to access admin controls.</div>
+			</div>
+		);
+	}
+
+	return (
+		<div className="container mx-auto p-6">
+			<div className="flex flex-col gap-4">
+				<h1 className="text-2xl font-bold flex items-center gap-2">
+					<Shield className="h-6 w-6 text-blue-600" /> 
+					Group Chat Controls
+				</h1>
+				<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+					<div className="relative flex-1 sm:flex-none">
+						<Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+						<Input 
+							id="search" 
+							placeholder="Search groups..." 
+							value={search} 
+							onChange={(e) => setSearch(e.target.value)} 
+							className="pl-10 w-full sm:w-64" 
+						/>
+					</div>
+					<Button 
+						onClick={() => setShowCreateGroup(true)} 
+						className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+					>
+						<Plus className="h-4 w-4 mr-2" />
+						<span className="truncate">Create Group</span>
+					</Button>
+				</div>
+
+				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+					{/* Groups List */}
+					<div className="lg:col-span-1">
+						<Card>
+							<CardHeader>
+								<CardTitle className="flex items-center gap-2">
+									<Users className="h-5 w-5" />
+									Groups ({filteredGroups.length})
+								</CardTitle>
+							</CardHeader>
+							<CardContent>
+								{loading ? (
+									<div className="text-center py-4">Loading groups...</div>
+								) : filteredGroups.length === 0 ? (
+									<div className="text-center py-4 text-muted-foreground">
+										{search ? 'No groups found' : 'No groups available'}
+									</div>
+								) : (
+									<div className="space-y-2">
+										{filteredGroups.map((group) => (
+											<div
+												key={group.id}
+												className={`p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md ${
+													selectedGroup?.id === group.id
+														? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+														: 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+												}`}
+												onClick={() => loadDetails(group)}
+											>
+												<div className="flex items-center justify-between">
+													<div className="flex-1 min-w-0">
+														<h3 className="font-medium text-sm break-words">
+															{group.name}
+														</h3>
+														<p className="text-xs text-muted-foreground">
+															{group.memberCount} members
+														</p>
+													</div>
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={(e) => {
+															e.stopPropagation();
+															initiateDeleteGroup(group.id, group.name);
+														}}
+														className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+													>
+														<Trash2 className="h-4 w-4" />
+													</Button>
+												</div>
+											</div>
+										))}
+									</div>
+								)}
+							</CardContent>
+						</Card>
+
+						{/* Banned Members */}
+						{selectedGroup.members.filter(m => m.is_banned).length > 0 && (
+							<Card className="border-red-200 dark:border-red-800">
+								<CardHeader className="bg-red-50 dark:bg-red-950/30">
+									<CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
+										<UserX className="h-5 w-5" />
+										Banned Members ({selectedGroup.members.filter(m => m.is_banned).length})
+								<Card className="border-red-200 dark:border-red-800">
+									<CardHeader className="bg-red-50 dark:bg-red-950/30">
+										<CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
+											<UserX className="h-5 w-5" />
+											Banned Members ({selectedGroup.members.filter(m => m.is_banned).length})
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="pt-4">
+										<div className="space-y-2">
+											{selectedGroup.members.filter(m => m.is_banned).map((member) => (
+												<div key={member.id} className="flex items-center justify-between p-3 border border-red-200 dark:border-red-800 rounded bg-red-50/50 dark:bg-red-950/20">
+													<div className="flex items-center gap-3">
+														<div className="w-10 h-10 bg-red-200 dark:bg-red-900 rounded-full flex items-center justify-center">
+															<span className="text-sm font-medium text-red-700 dark:text-red-300">
+																{member.name?.charAt(0) || member.email?.charAt(0) || '?'}
+															</span>
+														</div>
+														<div className="flex-1">
+															<div className="flex items-center gap-2">
+																<p className="text-sm font-medium">{member.name || 'Unknown'}</p>
+																<Badge variant="destructive" className="text-xs">Banned</Badge>
+															</div>
+															<p className="text-xs text-muted-foreground">{member.email}</p>
+															{member.banned_at && (
+																<p className="text-xs text-red-600 dark:text-red-400 mt-1">
+																	Banned on {new Date(member.banned_at).toLocaleDateString()}
+																</p>
+															)}
+														</div>
+													</div>
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => unbanUser(member.id, member.name || member.email)}
+														className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+													>
+														<UserCheck className="h-4 w-4 mr-1" />
+														Unban
+													</Button>
+												</div>
+											))}
+										</div>
+									</CardContent>
+								</Card>
+							)}
+
+							{/* Messages */}
+							<Card>
+								<CardHeader>
+									<CardTitle className="flex items-center gap-2">
+										<MessageSquare className="h-5 w-5" />
+										Recent Messages ({messages.length})
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									{messages.length === 0 ? (
+										<p className="text-center text-muted-foreground py-4">No messages</p>
+									) : (
+										<div className="space-y-3">
+											{messages.map((message) => (
+												<div key={message.id} className="p-3 border rounded">
+													<div className="flex items-start justify-between">
+														<div className="flex-1">
+															<div className="flex items-center gap-2 mb-1">
+																<span className="text-sm font-medium">
+																	{message.users.name || 'Unknown'}
+																</span>
+																<span className="text-xs text-muted-foreground">
+																	{new Date(message.created_at).toLocaleString()}
+																</span>
+															</div>
+															<p className="text-sm">{message.content}</p>
+														</div>
+														<Button
+															variant="ghost"
+															size="sm"
+															onClick={() => deleteMessage(message.id)}
+															className="text-red-600 hover:text-red-700"
+														>
+															<Trash2 className="h-4 w-4" />
+														</Button>
+													</div>
+												</div>
+											))}
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						</div>
+					) : (
+						<Card>
+							<CardContent className="text-center py-8">
+								<Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+								<p className="text-muted-foreground">Select a group to view details</p>
+							</CardContent>
+						</Card>
+					)}
+									</CardHeader>
+								</Card>
+
+								{/* Active Members */}
+								<Card>
+									<CardHeader>
+										<CardTitle className="flex items-center gap-2">
+											<Users className="h-5 w-5" />
+											Active Members ({selectedGroup.members.filter(m => !m.is_banned).length})
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										{selectedGroup.members.filter(m => !m.is_banned).length === 0 ? (
+											<p className="text-center text-muted-foreground py-4">No active members</p>
+										) : (
+											<div className="space-y-2">
+												{selectedGroup.members.filter(m => !m.is_banned).map((member) => (
+													<div key={member.id} className="flex items-center justify-between p-2 border rounded">
+														<div className="flex items-center gap-2">
+															<div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+																<span className="text-xs font-medium">
+																	{member.name?.charAt(0) || member.email?.charAt(0) || '?'}
+																</span>
+															</div>
+															<div>
+																<p className="text-sm font-medium">{member.name || 'Unknown'}</p>
+																<p className="text-xs text-muted-foreground">{member.email}</p>
+															</div>
+														</div>
+														<Button
+															variant="ghost"
+															size="sm"
+															onClick={() => banUser(member.id, member.name || member.email)}
+															className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+														>
+															<Ban className="h-4 w-4 mr-1" />
+															Ban
+														</Button>
+													</div>
+												))}
+											</div>
+										)}
+									</CardContent>
+								</Card>
+
+								{/* Banned Members */}
+								{selectedGroup.members.filter(m => m.is_banned).length > 0 && (
+									<Card className="border-red-200 dark:border-red-800">
+										<CardHeader className="bg-red-50 dark:bg-red-950/30">
+											<CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
+												<UserX className="h-5 w-5" />
+												Banned Members ({selectedGroup.members.filter(m => m.is_banned).length})
+											</CardTitle>
+										</CardHeader>
+										<CardContent className="pt-4">
+											<div className="space-y-2">
+												{selectedGroup.members.filter(m => m.is_banned).map((member) => (
+													<div key={member.id} className="flex items-center justify-between p-3 border border-red-200 dark:border-red-800 rounded bg-red-50/50 dark:bg-red-950/20">
+														<div className="flex items-center gap-3">
+															<div className="w-10 h-10 bg-red-200 dark:bg-red-900 rounded-full flex items-center justify-center">
+																<span className="text-sm font-medium text-red-700 dark:text-red-300">
+																	{member.name?.charAt(0) || member.email?.charAt(0) || '?'}
+																</span>
+															</div>
+															<div className="flex-1">
+																<div className="flex items-center gap-2">
+																	<p className="text-sm font-medium">{member.name || 'Unknown'}</p>
+																	<Badge variant="destructive" className="text-xs">Banned</Badge>
+																</div>
+																<p className="text-xs text-muted-foreground">{member.email}</p>
+																{member.banned_at && (
+																	<p className="text-xs text-red-600 dark:text-red-400 mt-1">
+																		Banned on {new Date(member.banned_at).toLocaleDateString()}
+																	</p>
+																)}
+															</div>
+														</div>
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => unbanUser(member.id, member.name || member.email)}
+															className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+														>
+															<UserCheck className="h-4 w-4 mr-1" />
+															Unban
+														</Button>
+													</div>
+												))}
+											</div>
+										</CardContent>
+									</Card>
+								)}
+
+								{/* Messages */}
+								<Card>
+									<CardHeader>
+										<CardTitle className="flex items-center gap-2">
+											<MessageSquare className="h-5 w-5" />
+											Recent Messages ({messages.length})
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										{messages.length === 0 ? (
+											<p className="text-center text-muted-foreground py-4">No messages</p>
+										) : (
+											<div className="space-y-3">
+												{messages.map((message) => (
+													<div key={message.id} className="p-3 border rounded">
+														<div className="flex items-start justify-between">
+															<div className="flex-1">
+																<div className="flex items-center gap-2 mb-1">
+																	<span className="text-sm font-medium">
+																		{message.users.name || 'Unknown'}
+																	</span>
+																	<span className="text-xs text-muted-foreground">
+																		{new Date(message.created_at).toLocaleString()}
+																	</span>
+																</div>
+																<p className="text-sm">{message.content}</p>
+															</div>
+															<Button
+																variant="ghost"
+																size="sm"
+																onClick={() => deleteMessage(message.id)}
+																className="text-red-600 hover:text-red-700"
+															>
+																<Trash2 className="h-4 w-4" />
+															</Button>
+														</div>
+													</div>
+												))}
+											</div>
+										)}
+									</CardContent>
+								</Card>
+							</div>
+						) : (
+							<Card>
+								<CardContent className="text-center py-8">
+									<Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+									<p className="text-muted-foreground">Select a group to view details</p>
+								</CardContent>
+							</Card>
+						)}
+					</div>
+				</div>
+			</div>
+
+			{/* Create Group Modal */}
+			<Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Create New Group</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div>
+							<Label htmlFor="groupName">Group Name</Label>
+							<Input
+								id="groupName"
+								value={newGroupName}
+								onChange={(e) => setNewGroupName(e.target.value)}
+								placeholder="Enter group name"
+							/>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setShowCreateGroup(false)}>
+								Cancel
+							</Button>
+							<Button onClick={createGroup}>Create Group</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Bulk Delete Modal */}
+			<Dialog open={showBulkDelete} onOpenChange={setShowBulkDelete}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Bulk Delete Messages</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="grid grid-cols-2 gap-4">
+							<div>
+								<Label htmlFor="startDate">Start Date</Label>
+								<Input
+									id="startDate"
+									type="date"
+									value={startDate}
+									onChange={(e) => setStartDate(e.target.value)}
+								/>
+							</div>
+							<div>
+								<Label htmlFor="endDate">End Date</Label>
+								<Input
+									id="endDate"
+									type="date"
+									value={endDate}
+									onChange={(e) => setEndDate(e.target.value)}
+								/>
+							</div>
+						</div>
+						<div>
+							<Label>Select Messages</Label>
+							<div className="max-h-40 overflow-y-auto space-y-2 mt-2">
+								{messages.map((message) => (
+									<div key={message.id} className="flex items-center gap-2">
+										<input
+											type="checkbox"
+											id={message.id}
+											checked={selectedMessages.includes(message.id)}
+											onChange={(e) => {
+												if (e.target.checked) {
+													setSelectedMessages([...selectedMessages, message.id]);
+												} else {
+													setSelectedMessages(selectedMessages.filter(id => id !== message.id));
+												}
+											}}
+										/>
+										<label htmlFor={message.id} className="text-sm flex-1">
+											{message.content.substring(0, 50)}...
+										</label>
+									</div>
+								))}
+							</div>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setShowBulkDelete(false)}>
+								Cancel
+							</Button>
+							<Button 
+								variant="destructive" 
+								onClick={bulkDeleteMessages}
+								disabled={selectedMessages.length === 0 && (!startDate || !endDate)}
+							>
+								Delete Selected
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Ban User Confirmation Dialog */}
+			<Dialog open={showBanConfirm} onOpenChange={setShowBanConfirm}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>⚠️ Confirm Ban User</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm">
+							Are you sure you want to ban <span className="font-semibold text-red-600">{actionTarget?.name}</span> from this group?
+						</p>
+						<div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+							<p className="text-sm text-red-800 dark:text-red-200 font-medium">
+								⚠️ Warning: This user will be removed from the group and cannot rejoin unless unbanned by an admin.
+							</p>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setShowBanConfirm(false)}>
+								Cancel
+							</Button>
+							<Button variant="destructive" onClick={confirmBanUser}>
+								<Ban className="h-4 w-4 mr-2" />
+								Ban User
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Unban User Confirmation Dialog */}
+			<Dialog open={showUnbanConfirm} onOpenChange={setShowUnbanConfirm}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Confirm Unban User</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm">
+							Are you sure you want to unban <span className="font-semibold text-green-600">{actionTarget?.name}</span>?
+						</p>
+						<div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+							<p className="text-sm text-green-800 dark:text-green-200">
+								✓ This user will be able to rejoin the group.
+							</p>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setShowUnbanConfirm(false)}>
+								Cancel
+							</Button>
+							<Button onClick={confirmUnbanUser} className="bg-green-600 hover:bg-green-700">
+								<UserCheck className="h-4 w-4 mr-2" />
+								Unban User
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Delete Message Confirmation Dialog */}
+			<Dialog open={showDeleteMessageConfirm} onOpenChange={setShowDeleteMessageConfirm}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>⚠️ Confirm Delete Message</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm">
+							Are you sure you want to delete this message?
+						</p>
+						<div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+							<p className="text-sm text-red-800 dark:text-red-200 font-medium">
+								⚠️ This action cannot be undone.
+							</p>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setShowDeleteMessageConfirm(false)}>
+								Cancel
+							</Button>
+							<Button variant="destructive" onClick={confirmDeleteMessage}>
+								<Trash2 className="h-4 w-4 mr-2" />
+								Delete Message
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Delete Group Confirmation Dialog */}
+			<Dialog open={showDeleteGroupConfirm} onOpenChange={setShowDeleteGroupConfirm}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>🗑️ Confirm Delete Group</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm">
+							Are you sure you want to permanently delete the group <span className="font-semibold text-red-600">"{actionTarget?.name}"</span>?
+						</p>
+						<div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+							<p className="text-sm text-red-800 dark:text-red-200 font-semibold mb-2">
+								⚠️ Warning: This action cannot be undone!
+							</p>
+							<ul className="text-sm text-red-700 dark:text-red-300 space-y-1 ml-4 list-disc">
+								<li>All group messages will be permanently deleted</li>
+								<li>All members will be removed from the group</li>
+								<li>Group history and data will be lost forever</li>
+							</ul>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => {
+								setShowDeleteGroupConfirm(false);
+								setActionTarget(null);
+							}}>
+								Cancel
+							</Button>
+							<Button variant="destructive" onClick={confirmDeleteGroup}>
+								<Trash2 className="h-4 w-4 mr-2" />
+								Delete Group
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
+} 

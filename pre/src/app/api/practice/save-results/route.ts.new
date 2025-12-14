@@ -1,0 +1,183 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/authOptions";
+import { NotificationService } from "@/lib/notification-service";
+import { Prisma } from "@prisma/client";
+
+interface QuestionData {
+  questionId: string;
+  isCorrect: boolean;
+  choice?: string;
+}
+
+interface AttemptResult {
+  id: string;
+  userId: string;
+  questionId: string;
+  choice?: string | null;
+  isCorrect: boolean;
+  gemsEarned: number;
+  isFirstCorrectAttempt: boolean;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    // Verify user is authenticated with valid ID
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get questions array from request body
+    const { questions } = await req.json() as { questions: QuestionData[] };
+    if (!Array.isArray(questions)) {
+      return NextResponse.json(
+        { error: "Invalid request format: questions array is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify user exists and has a wallet
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: { wallet: true }
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (!user.wallet) {
+      return NextResponse.json({ error: "User wallet not initialized" }, { status: 400 });
+    }
+
+    const results: AttemptResult[] = [];
+    let totalGemsEarned = 0;
+
+    // Process each question
+    for (const questionData of questions) {
+      if (!questionData.questionId) {
+        continue; // Skip invalid questions
+      }
+
+      try {
+        // Process attempt in a transaction
+        const result = await prisma.$transaction(async (tx) => {
+          // Check for existing correct attempt
+          const existingAttempt = await tx.practiceAttempt.findFirst({
+            where: {
+              userId: session.user.id,
+              questionId: questionData.questionId,
+              isCorrect: true
+            }
+          });
+
+          // Calculate gems if this is first correct attempt
+          let gemsEarned = 0;
+          if (questionData.isCorrect && !existingAttempt) {
+            // Get question details
+            const question = await tx.mathQuestion.findUnique({
+              where: { id: questionData.questionId },
+              select: { 
+                gemReward: true,
+                difficulty: true,
+                topic: true
+              }
+            });
+
+            if (question) {
+              // Calculate gems based on difficulty if no specific reward set
+              gemsEarned = question.gemReward ?? (
+                question.difficulty === "HARD" ? 5 :
+                question.difficulty === "MEDIUM" ? 3 : 1
+              );
+
+              // Update user's gem balance
+              await tx.wallet.update({
+                where: { userId: session.user.id },
+                data: { gemsBalance: { increment: gemsEarned } }
+              });
+
+              // Record transaction
+              await tx.gemsTransaction.create({
+                data: {
+                  userId: session.user.id,
+                  amount: gemsEarned,
+                  description: `Correct answer in practice mode - ${question.topic || 'Unknown Topic'}`,
+                  type: "EARNED",
+                  sourceType: "PRACTICE",
+                  sourceId: questionData.questionId
+                }
+              });
+
+              // Try to send notification
+              try {
+                await NotificationService.send({
+                  userId: session.user.id,
+                  type: "GEM_REWARD",
+                  title: "Gems Earned!",
+                  message: `You earned ${gemsEarned} gems for correctly answering a ${
+                    question.difficulty?.toLowerCase() || 'practice'
+                  } question in ${question.topic || 'math practice'}!`
+                });
+              } catch (notifError) {
+                console.warn("Failed to send notification:", notifError);
+                // Continue execution - notification failure shouldn't invalidate attempt
+              }
+            }
+          }
+
+          // Create attempt record
+          const attempt = await tx.practiceAttempt.create({
+            data: {
+              userId: session.user.id,
+              questionId: questionData.questionId,
+              choice: questionData.choice,
+              isCorrect: questionData.isCorrect,
+              gemsEarned
+            }
+          });
+
+          return {
+            ...attempt,
+            isFirstCorrectAttempt: questionData.isCorrect && !existingAttempt
+          };
+        });
+
+        results.push(result);
+        totalGemsEarned += result.gemsEarned;
+
+      } catch (error) {
+        // Handle known Prisma errors
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+          if (error.code === 'P2002') { // Unique constraint violation
+            console.warn("Duplicate attempt detected:", error.message);
+            continue; // Skip this question and continue with others
+          }
+        }
+        
+        // Log other errors but continue processing remaining questions
+        console.error("Error processing question attempt:", error);
+        continue;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        attempts: results,
+        totalGemsEarned,
+        totalAttempts: results.length
+      }
+    });
+
+  } catch (error) {
+    console.error("Error saving practice results:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { error: "Failed to save practice results", details: errorMessage },
+      { status: 500 }
+    );
+  }
+}

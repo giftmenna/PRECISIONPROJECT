@@ -43,57 +43,13 @@ GMAIL_APP_PASSWORD="your-app-password"
 EMAIL_PROVIDER="gmail"
 ```
 
-## Deployment to Vercel
+## Deployment
 
-### Prerequisites
-- Vercel account
-- PostgreSQL database (Supabase or Vercel Postgres)
-- Gmail account for email functionality
-
-### Steps
-
-1. **Install Vercel CLI**:
-   ```bash
-   npm i -g vercel
-   ```
-
-2. **Login to Vercel**:
-   ```bash
-   vercel login
-   ```
-
-3. **Deploy to Vercel**:
-   ```bash
-   vercel --prod
-   ```
-
-4. **Set Environment Variables** in Vercel Dashboard:
-   - Go to your project settings
-   - Add the following environment variables:
-     - `DATABASE_URL`: Your PostgreSQL connection string
-     - `NEXTAUTH_URL`: Your Vercel deployment URL
-     - `NEXTAUTH_SECRET`: A secure random string
-     - `GMAIL_USER`: Your Gmail address
-     - `GMAIL_APP_PASSWORD`: Your Gmail app password
-     - `EMAIL_PROVIDER`: "gmail"
-
-5. **Run Database Migrations**:
-   ```bash
-   vercel env pull .env.local
-   npx prisma db push
-   ```
-
-6. **Redeploy** (if needed):
-   ```bash
-   vercel --prod
-   ```
+Deploy this project to your hosting provider of choice.
 
 ### Database Setup
 
-For production, we recommend using:
-- **Supabase** (PostgreSQL): https://supabase.com
-- **Supabase** (PostgreSQL): https://supabase.com
-- **Vercel Postgres**: Available in Vercel dashboard
+For production, we recommend using a managed PostgreSQL database provider.
 
 ### Email Setup
 
@@ -116,7 +72,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 Notes:
 - The assistant will automatically use OpenAI when the key is present, and fall back to built‑in guidance if not.
 - Model used: `gpt-4o-mini` with concise, step‑by‑step math and app support instructions.
-- For production (Vercel), add `OPENAI_API_KEY` in Project Settings → Environment Variables.
+- For production, add `OPENAI_API_KEY` in Project Settings → Environment Variables.
 
 ## Project Structure
 

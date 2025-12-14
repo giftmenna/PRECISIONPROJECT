@@ -3,7 +3,7 @@
 ## 🚀 Pre-Deployment Checklist
 
 ### 1. Database Setup
-- [ ] Create a PostgreSQL database (Supabase or Vercel Postgres)
+- [ ] Create a PostgreSQL database
 - [ ] Get the database connection string
 - [ ] Test the connection locally
 
@@ -14,7 +14,7 @@
 
 ### 3. Environment Variables
 - [ ] `DATABASE_URL` - PostgreSQL connection string
-- [ ] `NEXTAUTH_URL` - Your Vercel deployment URL
+- [ ] `NEXTAUTH_URL` - Your deployment URL
 - [ ] `NEXTAUTH_SECRET` - Secure random string (32+ characters)
 - [ ] `GMAIL_USER` - Your Gmail address
 - [ ] `GMAIL_APP_PASSWORD` - Gmail app password
@@ -28,21 +28,7 @@
 
 ## 🚀 Deployment Steps
 
-### Option 1: Using Vercel CLI
-```bash
-# 1. Login to Vercel
-vercel login
-
-# 2. Deploy
-vercel --prod
-
-# 3. Set environment variables in Vercel dashboard
-# 4. Run database migrations
-vercel env pull .env.local
-npx prisma db push
-```
-
-### Option 2: Using Deployment Script
+### Option 1: Using a Deployment Script
 ```bash
 # 1. Make script executable (if not already)
 chmod +x deploy.sh
@@ -51,9 +37,9 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-### Option 3: Using Vercel Dashboard
+### Option 2: Using the Dashboard of your hosting provider
 1. Push code to GitHub
-2. Connect repository to Vercel
+2. Connect repository to your hosting provider
 3. Configure build settings
 4. Set environment variables
 5. Deploy
@@ -61,12 +47,12 @@ chmod +x deploy.sh
 ## 🔧 Post-Deployment
 
 ### 1. Environment Variables Setup
-Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+Go to your hosting provider's Dashboard → Your Project → Settings → Environment Variables
 
 Add these variables:
 ```
 DATABASE_URL=your-postgresql-connection-string
-NEXTAUTH_URL=https://your-app.vercel.app
+NEXTAUTH_URL=https://your-app.com
 NEXTAUTH_SECRET=your-secret-key
 GMAIL_USER=your-gmail@gmail.com
 GMAIL_APP_PASSWORD=your-app-password
@@ -75,11 +61,7 @@ EMAIL_PROVIDER=gmail
 
 ### 2. Database Migration
 ```bash
-# Pull environment variables
-vercel env pull .env.local
-
-# Run migrations
-npx prisma db push
+# Run migrations on your hosting provider's infrastructure
 ```
 
 ### 3. Testing
@@ -107,18 +89,12 @@ npm run build
 
 # Test database connection
 npx prisma db push
-
-# Check Vercel deployment status
-vercel ls
-
-# View deployment logs
-vercel logs
 ```
 
 ## 📞 Support
 
 If you encounter issues:
-1. Check Vercel deployment logs
+1. Check deployment logs on your hosting provider
 2. Verify environment variables
 3. Test database connection
 4. Check email configuration 

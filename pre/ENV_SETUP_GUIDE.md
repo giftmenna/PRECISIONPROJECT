@@ -64,7 +64,6 @@ Copy the output and use it as your `NEXTAUTH_SECRET` value.
 
 ## Production Deployment
 
-For production (Vercel/other platforms):
 - Set `NEXTAUTH_URL` to your production domain (e.g., `https://yourdomain.com`)
 - Use a different, secure `NEXTAUTH_SECRET` (never reuse development secrets)
 - Add these as environment variables in your hosting platform's dashboard

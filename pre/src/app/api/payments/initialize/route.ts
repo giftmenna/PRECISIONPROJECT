@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         email: user.email,
         amount: amount * 100, // Paystack expects amount in kobo
         reference: reference,
-        callback_url: `${process.env.NEXTAUTH_URL || 'https://precisionaw-gj052m6vf-giftmennas-projects.vercel.app'}/pricing?payment=success`,
+        callback_url: `${process.env.NEXTAUTH_URL}/pricing?payment=success`,
         metadata: {
           user_id: user.id,
           gem_amount: gemAmount,
